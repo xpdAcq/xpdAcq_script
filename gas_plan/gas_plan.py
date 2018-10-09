@@ -87,7 +87,7 @@ def Tramp_gas_plan(detectors, gas_in, exp_time, Tstart, Tstop, Tstep,
     yield from plan
 
 
-def tseries_gas_plan(detectors, gas_in, exp_time, num_exp=1, delay=1,
+def tseries_gas_plan(detectors, gas_in, exp_time, delay=1, num_exp=1,
                      rga_masses=default_mass_list):
     """
     tseries-type scan with rga gas reading
@@ -101,10 +101,10 @@ def tseries_gas_plan(detectors, gas_in, exp_time, num_exp=1, delay=1,
         These gas must be in `gas.gas_list` but they may be in any order.
     exp_time : float, optional
         exposure time in seconds
-    num_exp : integer, optional
-        number of exposures
     delay : float, optional
         delay between exposures in seconds
+    num_exp : integer, optional
+        number of exposures
     rga_masses: list, optional
         a list of rga masses appearing in a live table
 
@@ -132,7 +132,7 @@ def tseries_gas_plan(detectors, gas_in, exp_time, num_exp=1, delay=1,
                  'sp_computed_exposure': computed_exposure,
                  'sp_plan_name': 'tseries'}
 
-    plan = bp.count(detectors, num, delay, md=xpdacq_md)
+    plan = bp.count(detectors, num_exp, delay, md=xpdacq_md)
     plan = bpp.subs_wrapper(plan, LiveTable(detectors))
     def inner_shutter_control(msg):
         if msg.command == 'trigger':
