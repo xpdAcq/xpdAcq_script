@@ -32,11 +32,10 @@ def configure_gas_mass_hint(mass_list):
 #with user specified detectors.
 
 def Tramp_gas_plan(detectors, gas_in, exp_time, Tstart, Tstop, Tstep,
-                   num_exp=1, delay=1, rga_masses=default_mass_list):
+                   rga_masses=default_mass_list):
     """
-    Example:
-    >>> RE(gas_plan(gas_in='He', masses_to_plot=['mass4', 'mass6']))
-    ----------
+    Tramp-type scan with rga gas reading
+
     Parameters
     ----------
     detectors: list
@@ -44,16 +43,21 @@ def Tramp_gas_plan(detectors, gas_in, exp_time, Tstart, Tstop, Tstep,
     gas_in : string
         e.g., 'He', default is 'He'
         These gas must be in `gas.gas_list` but they may be in any order.
-    rga_masses: list, optional
-        a list of rga masses appearing in a live table
-    det : ophyd obj, optional
-        detector to use
     exp_time : float, optional
         exposure time in seconds
-    num_exp : integer, optional
-        number of exposures
-    delay : float, optional
-        delay between exposures in seconds
+    Tstart : float
+        starting point of temperature sequence.
+    Tstop : float
+        stoping point of temperature sequence.
+    Tstep : float
+        step size between Tstart and Tstop of this sequence.
+    rga_masses: list, optional
+        a list of rga masses will be appearing in a live table
+
+    Example:
+    --------
+    >>> plan = Tramp_gas_plan([pe1c, rga], 'He', 5, 300, 350, 5)
+    >>> xrun(<sample ind>, plan)
     """
     ## configure hints on gas device
     configure_gas_mass_hint(rga_masses)
@@ -68,43 +72,45 @@ def Tramp_gas_plan(detectors, gas_in, exp_time, Tstart, Tstop, Tstep,
     temp_controller = xpd_configuration['temp_controller']
     xpdacq_md = {'sp_time_per_frame': acq_time,
                  'sp_num_frames': num_frame,
-                 'sp_requested_exposure': exposure,
+                 'sp_requested_exposure': exp_time,
                  'sp_computed_exposure': computed_exposure,
-                 'sp_type': 'statTramp',
+                 'sp_type': 'Tramp',
                  'sp_startingT': Tstart,
                  'sp_endingT': Tstop,
                  'sp_requested_Tstep': Tstep,
                  'sp_computed_Tstep': computed_step_size,
                  'sp_Nsteps': Nsteps,
                  'sp_plan_name': 'Tramp'}
-
     plan = bp.scan(detectors, temp_controller, Tstart, Tstop,
                    Nsteps, per_step=_shutter_step, md=xpdacq_md)
     plan = bpp.subs_wrapper(plan, LiveTable(detectors))
     yield from plan
 
 
-def tseries_gas_plan(detectors, gas_in, exp_time, num_exp=1, delay=1
+def tseries_gas_plan(detectors, gas_in, exp_time, num_exp=1, delay=1,
                      rga_masses=default_mass_list):
     """
-    Example:
-    >>> RE(gas_plan(gas_in='He', masses_to_plot=['mass4', 'mass6']))
-    ----------
+    tseries-type scan with rga gas reading
+
     Parameters
     ----------
+    detectors: list
+        List of detectors will be triggered and recored.
     gas_in : string
         e.g., 'He', default is 'He'
         These gas must be in `gas.gas_list` but they may be in any order.
-    rga_masses: list, optional
-        a list of rga masses appearing in a live table
-    det : ophyd obj, optional
-        detector to use
     exp_time : float, optional
         exposure time in seconds
     num_exp : integer, optional
         number of exposures
     delay : float, optional
         delay between exposures in seconds
+    rga_masses: list, optional
+        a list of rga masses appearing in a live table
+
+    Example:
+    >>> plan = tseries_gas_plan([pe1c, rga], 'He', 5, 10, 2)
+    >>> xrun(<sample ind>, plan)
     """
     ## configure hints on gas device
     configure_gas_mass_hint(rga_masses)
@@ -113,26 +119,20 @@ def tseries_gas_plan(detectors, gas_in, exp_time, num_exp=1, delay=1
     yield from set_gas(gas_in)
 
     # configure the exposure time first
+    (num_frame, acq_time, computed_exposure) = _configure_area_det(exp_time)
     real_delay = max(0, delay - computed_exposure)
     period = max(computed_exposure, real_delay + computed_exposure)
     print('INFO: requested delay = {}s  -> computed delay = {}s'
           .format(delay, real_delay))
     print('INFO: nominal period (neglecting readout overheads) of {} s'
           .format(period))
-    (num_frame, acq_time, computed_exposure) = _configure_area_det(exp_time)
-    (Nsteps, computed_step_size) = _nstep(Tstart, Tstop, Tstep)
     xpdacq_md = {'sp_time_per_frame': acq_time,
                  'sp_num_frames': num_frame,
-                 'sp_requested_exposure': exposure,
+                 'sp_requested_exposure': exp_time,
                  'sp_computed_exposure': computed_exposure,
-                 'sp_startingT': Tstart,
-                 'sp_endingT': Tstop,
-                 'sp_requested_Tstep': Tstep,
-                 'sp_computed_Tstep': computed_step_size,
-                 'sp_Nsteps': Nsteps,
                  'sp_plan_name': 'tseries'}
 
-    plan = bp.count(detectors, num, delay, md=_md)
+    plan = bp.count(detectors, num, delay, md=xpdacq_md)
     plan = bpp.subs_wrapper(plan, LiveTable(detectors))
     def inner_shutter_control(msg):
         if msg.command == 'trigger':
